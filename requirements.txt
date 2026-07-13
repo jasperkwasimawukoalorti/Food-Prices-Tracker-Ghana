@@ -1,8 +1,0 @@
-duckdb
-pandas
-scikit-learn
-matplotlib
-requests
-wbgapi
-streamlit
-numpy
