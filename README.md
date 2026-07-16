@@ -13,7 +13,7 @@ Ghana, with a live Streamlit dashboard.
 
 Once deployed on [Streamlit Community Cloud](https://streamlit.io/cloud), add the link here:
 
-`https://<your-app-name>.streamlit.app`
+`https://food-prices-prediction-gh.streamlit.app/`
 
 ## What's in this repo
 
