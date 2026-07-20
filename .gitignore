@@ -1,9 +1,0 @@
-__pycache__/
-*.pyc
-.ipynb_checkpoints/
-.venv/
-venv/
-.DS_Store
-*.duckdb
-*.duckdb.wal
-.streamlit/secrets.toml
