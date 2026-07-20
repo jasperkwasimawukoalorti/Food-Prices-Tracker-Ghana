@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Ghana Food Price Tracker \u2014 Real WFP Market Data</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --green:#1B5E20;
+    --green-dark:#123D16;
+    --ink:#1F2420;
+    --gold:#C89B3C;
+    --red:#A63D40;
+    --paper:#FFFFFF;
+    --mist:#F3F6F3;
+    --line:#E3E8E3;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:'Manrope',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .display{ font-family:'Fraunces',serif; }
+  .mono{ font-family:'IBM Plex Mono',monospace; }
+
+  /* ---- Kente signature strip: the one bold, subject-grounded motif ---- */
+  .kente-strip{
+    height:10px; width:100%;
+    background:
+      repeating-linear-gradient(135deg,
+        var(--gold) 0 10px,
+        var(--red) 10px 20px,
+        var(--green) 20px 30px,
+        var(--ink) 30px 40px);
+    background-size:200% 100%;
+  }
+
+  .hero{
+    background:var(--green);
+    color:white;
+    padding:2.2rem 1.4rem 2.6rem;
+  }
+  .hero .eyebrow{
+    font-family:'IBM Plex Mono',monospace; font-size:.72rem; letter-spacing:.14em;
+    text-transform:uppercase; color:#9CC49F; margin:0 0 .6rem;
+  }
+  .hero h1{
+    font-family:'Fraunces',serif; font-weight:600; font-size:1.65rem; line-height:1.25;
+    margin:0 0 1.4rem; max-width:26rem;
+  }
+  .hero h1 .accent{ color:var(--gold); font-style:italic; }
+
+  .toggle{
+    display:flex; background:rgba(255,255,255,.14); border-radius:10px; padding:.25rem;
+    margin-bottom:.9rem; width:fit-content;
+  }
+  .toggle button{
+    border:none; background:transparent; color:#CADCCA;
+    font-family:'Manrope',sans-serif; font-weight:700; font-size:.82rem;
+    padding:.5rem .9rem; border-radius:8px; cursor:pointer;
+  }
+  .toggle button.active{ background:white; color:var(--green-dark); }
+
+  .confidence{
+    display:inline-flex; align-items:center; gap:.3rem;
+    font-size:.72rem; font-weight:700; padding:.2rem .55rem; border-radius:20px;
+    margin-top:.7rem;
+  }
+  .confidence.observed{ background:#E9F3EA; color:var(--green); }
+  .confidence.estimated{ background:#FBF3E3; color:#8A6416; }
+  .confidence.mixed{ background:var(--mist); color:#57604F; }
+
+  .picker{
+    display:flex; gap:.6rem; flex-wrap:wrap;
+  }
+  select{
+    appearance:none; -webkit-appearance:none;
+    background:white; color:var(--ink);
+    border:none; border-radius:10px;
+    padding:.75rem 2.1rem .75rem 1rem;
+    font-family:'Manrope',sans-serif; font-weight:700; font-size:.92rem;
+    flex:1; min-width:9.5rem;
+    background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="8"><path d="M1 1l5 5 5-5" stroke="%231F2420" stroke-width="2" fill="none"/></svg>');
+    background-repeat:no-repeat; background-position:right 0.9rem center;
+  }
+
+  main{ max-width:30rem; margin:0 auto; padding:0 1.4rem 3rem; }
+
+  .price-card{
+    margin-top:-1.6rem;
+    background:white; border-radius:16px;
+    box-shadow:0 10px 30px rgba(27,94,32,.16);
+    padding:1.4rem 1.3rem; position:relative; z-index:2;
+    border:1px solid var(--line);
+  }
+  .price-card .label{ font-size:.78rem; color:#6B756D; font-weight:600; }
+  .price-row{ display:flex; align-items:baseline; gap:.5rem; margin:.25rem 0 .2rem; flex-wrap:wrap; }
+  .price-big{ font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:2.3rem; color:var(--green-dark); }
+  .price-unit{ font-size:.95rem; color:#6B756D; font-weight:600; }
+  .delta{ display:inline-flex; align-items:center; gap:.25rem; font-weight:700; font-size:.85rem; padding:.2rem .55rem; border-radius:20px; }
+  .delta.up{ background:#FBEAEA; color:var(--red); }
+  .delta.down{ background:#E9F3EA; color:var(--green); }
+  .delta.flat{ background:var(--mist); color:#6B756D; }
+
+  .vs-national{ margin-top:.9rem; font-size:.88rem; color:#4B554D; }
+  .vs-national b{ color:var(--ink); }
+
+  section{ margin-top:2rem; }
+  .section-title{
+    font-family:'Fraunces',serif; font-weight:600; font-size:1.15rem; margin:0 0 .2rem;
+  }
+  .section-sub{ font-size:.85rem; color:#6B756D; margin:0 0 1rem; }
+
+  .chart-wrap{ background:var(--mist); border-radius:14px; padding:1rem .8rem .6rem; }
+
+  .compare-row{
+    display:flex; align-items:center; gap:.7rem; padding:.5rem 0;
+    border-bottom:1px solid var(--line);
+  }
+  .compare-row:last-child{ border-bottom:none; }
+  .compare-region{ width:6.6rem; flex-shrink:0; font-size:.82rem; font-weight:700; }
+  .compare-bar-track{ flex:1; background:var(--mist); border-radius:6px; height:10px; overflow:hidden; }
+  .compare-bar{ height:100%; border-radius:6px; background:var(--green); }
+  .compare-bar.self{ background:var(--gold); }
+  .compare-price{ width:4.6rem; text-align:right; font-family:'IBM Plex Mono',monospace; font-size:.82rem; font-weight:600; flex-shrink:0; }
+
+  .volatility-list{ display:flex; flex-direction:column; gap:.55rem; }
+  .volatility-item{
+    display:flex; justify-content:space-between; align-items:center;
+    background:var(--mist); border-radius:10px; padding:.7rem .9rem; font-size:.85rem;
+  }
+  .volatility-item .who{ font-weight:700; }
+  .volatility-item .val{ font-family:'IBM Plex Mono',monospace; color:var(--red); font-weight:600; }
+
+  footer{
+    margin-top:2.6rem; padding-top:1.4rem; border-top:1px solid var(--line);
+    font-size:.78rem; color:#7A847B; line-height:1.6;
+  }
+  footer b{ color:var(--ink); }
+
+  .skeleton{ color:#9AA39B; font-size:.85rem; padding:1rem 0; }
+  .error-box{
+    background:#FBEAEA; color:var(--red); border-radius:10px; padding:.8rem 1rem;
+    font-size:.85rem; font-weight:600;
+  }
+
+  @media (min-width:640px){
+    .hero h1{ font-size:1.9rem; }
+    .price-big{ font-size:2.7rem; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="hero">
+    <p class="eyebrow">Ghana Food Price Tracker &middot; real WFP market data</p>
+    <div class="toggle" id="viewToggle">
+      <button data-pricetype="Wholesale" class="active">Trader &middot; Wholesale</button>
+      <button data-pricetype="Retail">Consumer &middot; Retail</button>
+    </div>
+    <h1 id="heroQuestion">What does <span class="accent">maize</span> actually cost in <span class="accent">Ashanti</span> this month?</h1>
+    <div class="picker">
+      <select id="regionSelect" aria-label="Region"></select>
+      <select id="commoditySelect" aria-label="Commodity"></select>
+    </div>
+  </div>
+  <div class="kente-strip"></div>
+
+  <main>
+    <div class="price-card" id="priceCard">
+      <div class="skeleton">Loading real market data\u2026</div>
+    </div>
+
+    <section>
+      <p class="section-title">Price over time</p>
+      <p class="section-sub">Monthly average, Wholesale, price-per-KG, with 3-month rolling average.</p>
+      <div class="chart-wrap"><canvas id="trendChart" height="200"></canvas></div>
+    </section>
+
+    <section>
+      <p class="section-title" id="compareTitle">Compare across regions</p>
+      <p class="section-sub">Same commodity, same month, every region that reports it.</p>
+      <div id="compareList"><div class="skeleton">Loading\u2026</div></div>
+    </section>
+
+    <section>
+      <p class="section-title">Most volatile markets right now</p>
+      <p class="section-sub">Region &times; commodity pairs with the widest price swings over time \u2014 worth watching first.</p>
+      <div class="volatility-list" id="volatilityList"><div class="skeleton">Loading\u2026</div></div>
+    </section>
+
+    <footer>
+      <p><b>Two views, one dataset:</b> <b>Trader (Wholesale)</b> is what a bulk buyer pays a supplier. <b>Consumer (Retail)</b> is closer to what you'd pay at a market stall \u2014 but every Retail figure in this dataset is WFP's own modeled estimate, not a directly observed price, so it's labeled "estimated" rather than shown the same way as an observed number.</p>
+      <p><b>Where this comes from:</b> World Food Programme price reports for Ghana, normalized to price-per-kilogram. Commodities quoted only by count (tubers, bunches, pieces) aren't shown in a view where they lack a valid weight conversion \u2014 coverage genuinely differs between the two views for a few commodities.</p>
+      <p><b>On regions:</b> Ghana has had 16 official regions since 2019, but the source data still reports under the 10 older regional boundaries \u2014 this tracker shows exactly those 10, not estimates for the newer six.</p>
+    </footer>
+  </main>
+
+<script>
+const API = '';
+let trendChart = null;
+let currentPricetype = 'Wholesale';
+
+async function fetchJSON(url){
+  const res = await fetch(url);
+  if(!res.ok){
+    const err = await res.json().catch(()=>({detail:'Something went wrong.'}));
+    throw new Error(err.detail || 'Request failed.');
+  }
+  return res.json();
+}
+
+function fmtRegion(r){
+  return r.split(' ').map(w => w[0] + w.slice(1).toLowerCase()).join(' ');
+}
+
+function confidenceClass(label){
+  if(label === 'directly observed') return 'observed';
+  if(label === 'estimated') return 'estimated';
+  return 'mixed';
+}
+
+async function init(){
+  document.querySelectorAll('#viewToggle button').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      if(btn.classList.contains('active')) return;
+      document.querySelectorAll('#viewToggle button').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      currentPricetype = btn.dataset.pricetype;
+      await loadRegionsAndCommodities();
+      refresh();
+    });
+  });
+
+  await loadRegionsAndCommodities();
+  refresh();
+}
+
+async function loadRegionsAndCommodities(){
+  const regionSelect = document.getElementById('regionSelect');
+  const commoditySelect = document.getElementById('commoditySelect');
+  const keepRegion = regionSelect.value;
+  const keepCommodity = commoditySelect.value;
+
+  const [regionsData, commoditiesData] = await Promise.all([
+    fetchJSON(`/api/v1/regions?pricetype=${currentPricetype}`),
+    fetchJSON(`/api/v1/commodities?pricetype=${currentPricetype}`),
+  ]);
+
+  regionSelect.innerHTML = '';
+  regionsData.regions.forEach(r=>{
+    const opt = document.createElement('option');
+    opt.value = r; opt.textContent = fmtRegion(r);
+    regionSelect.appendChild(opt);
+  });
+  regionSelect.value = regionsData.regions.includes(keepRegion) ? keepRegion : 'ASHANTI';
+
+  commoditySelect.innerHTML = '';
+  commoditiesData.commodities.forEach(c=>{
+    const opt = document.createElement('option');
+    opt.value = c; opt.textContent = c;
+    commoditySelect.appendChild(opt);
+  });
+  commoditySelect.value = commoditiesData.commodities.includes(keepCommodity)
+    ? keepCommodity
+    : (commoditiesData.commodities.includes('Maize') ? 'Maize' : commoditiesData.commodities[0]);
+
+  regionSelect.onchange = refresh;
+  commoditySelect.onchange = refresh;
+}
+
+async function refresh(){
+  const region = document.getElementById('regionSelect').value;
+  const commodity = document.getElementById('commoditySelect').value;
+  document.getElementById('heroQuestion').innerHTML =
+    `What does <span class="accent">${commodity.toLowerCase()}</span> actually cost ${currentPricetype === 'Wholesale' ? 'to buy wholesale in' : 'at the market in'} <span class="accent">${fmtRegion(region)}</span> this month?`;
+  document.getElementById('compareTitle').textContent = `Compare ${commodity} across regions`;
+
+  await Promise.all([
+    loadSummary(region, commodity),
+    loadTrend(region, commodity),
+    loadCompare(commodity, region),
+  ]);
+  loadVolatility();
+}
+
+async function loadSummary(region, commodity){
+  const card = document.getElementById('priceCard');
+  try{
+    const d = await fetchJSON(`/api/v1/summary?region=${encodeURIComponent(region)}&commodity=${encodeURIComponent(commodity)}&pricetype=${currentPricetype}`);
+    const mom = d.month_over_month_pct;
+    const deltaClass = mom === null ? 'flat' : mom > 0.5 ? 'up' : mom < -0.5 ? 'down' : 'flat';
+    const deltaArrow = mom === null ? '\u2013' : mom > 0.5 ? '\u2191' : mom < -0.5 ? '\u2193' : '\u2192';
+    const vs = d.vs_national_avg_pct;
+    const confLabel = d.data_confidence;
+
+    card.innerHTML = `
+      <div class="label">${fmtRegion(d.region)} \u00b7 ${d.commodity} \u00b7 ${d.month}</div>
+      <div class="price-row">
+        <span class="price-big">GH\u20b5${d.avg_price_per_kg.toFixed(2)}</span>
+        <span class="price-unit">/ kg</span>
+        ${mom !== null ? `<span class="delta ${deltaClass}">${deltaArrow} ${Math.abs(mom)}% vs last month</span>` : ''}
+      </div>
+      ${vs !== null ? `<div class="vs-national">${Math.abs(vs)}% <b>${vs > 0 ? 'above' : vs < 0 ? 'below' : 'at'}</b> the 10-region average for ${d.commodity} this month.</div>` : ''}
+      <div class="confidence ${confidenceClass(confLabel)}">${confLabel === 'directly observed' ? '\u25cf' : '\u25cb'} ${confLabel}</div>
+    `;
+  }catch(e){
+    card.innerHTML = `<div class="error-box">${e.message}</div>`;
+  }
+}
+
+async function loadTrend(region, commodity){
+  try{
+    const d = await fetchJSON(`/api/v1/trend?region=${encodeURIComponent(region)}&commodity=${encodeURIComponent(commodity)}&pricetype=${currentPricetype}`);
+    const labels = d.points.map(p => p.month);
+    const prices = d.points.map(p => p.price);
+    const rolling = d.points.map(p => p.rolling_avg);
+
+    if(trendChart) trendChart.destroy();
+    const ctx = document.getElementById('trendChart').getContext('2d');
+    trendChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label:'Monthly avg', data: prices, borderColor:'#C89B3C', borderWidth:1.5, pointRadius:0, tension:.15 },
+          { label:'3-mo rolling avg', data: rolling, borderColor:'#1B5E20', borderWidth:2.5, pointRadius:0, tension:.25 },
+        ]
+      },
+      options: {
+        responsive:true,
+        plugins:{ legend:{ position:'bottom', labels:{ font:{family:'Manrope', size:11}, boxWidth:10 } } },
+        scales:{
+          x:{ ticks:{ maxTicksLimit:6, font:{size:10} }, grid:{ display:false } },
+          y:{ ticks:{ font:{size:10}, callback:v=>'GH\u20b5'+v }, grid:{ color:'#E3E8E3' } },
+        }
+      }
+    });
+  }catch(e){
+    document.querySelector('.chart-wrap').innerHTML = `<div class="error-box">${e.message}</div>`;
+  }
+}
+
+async function loadCompare(commodity, currentRegion){
+  const list = document.getElementById('compareList');
+  try{
+    const d = await fetchJSON(`/api/v1/compare?commodity=${encodeURIComponent(commodity)}&pricetype=${currentPricetype}`);
+    const max = Math.max(...d.regions.map(r=>r.avg_price_per_kg));
+    list.innerHTML = d.regions.map(r => `
+      <div class="compare-row">
+        <div class="compare-region">${fmtRegion(r.region)}</div>
+        <div class="compare-bar-track"><div class="compare-bar ${r.region===currentRegion?'self':''}" style="width:${(r.avg_price_per_kg/max*100).toFixed(0)}%"></div></div>
+        <div class="compare-price">GH\u20b5${r.avg_price_per_kg.toFixed(2)}</div>
+      </div>
+    `).join('');
+  }catch(e){
+    list.innerHTML = `<div class="error-box">${e.message}</div>`;
+  }
+}
+
+async function loadVolatility(){
+  const list = document.getElementById('volatilityList');
+  try{
+    const d = await fetchJSON(`/api/v1/volatility?limit=6&pricetype=${currentPricetype}`);
+    list.innerHTML = d.pairs.map(p => `
+      <div class="volatility-item">
+        <span class="who">${fmtRegion(p.region)} \u00b7 ${p.commodity}</span>
+        <span class="val">\u00b1GH\u20b5${p.price_stddev.toFixed(2)}</span>
+      </div>
+    `).join('');
+  }catch(e){
+    list.innerHTML = `<div class="error-box">${e.message}</div>`;
+  }
+}
+
+init();
+</script>
+</body>
+</html>
